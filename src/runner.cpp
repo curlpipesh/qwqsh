@@ -10,7 +10,7 @@
  *      We can't just use popen(3) and pclose(3) because those just invoke /bin/sh, and we
  *      don't want to cheat by doing that. Writing our own popen(3) and pclose(3) would be
  *      possible (because we're already doing essentially that), but would require some 
- *      extra work
+ *      extra work (See book, pages 503-10). 
  */
 
 // For std::transform
