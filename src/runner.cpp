@@ -8,7 +8,9 @@
  * TODO Use mkfifo(3)? UNIX programming book seems to recommend doing so (see page 514-8)
  *      "FIFOs are used by shell commands to pass data from one shell pipeline to another..."
  *      We can't just use popen(3) and pclose(3) because those just invoke /bin/sh, and we
- *      don't want to cheat by doing that
+ *      don't want to cheat by doing that. Writing our own popen(3) and pclose(3) would be
+ *      possible (because we're already doing essentially that), but would require some 
+ *      extra work
  */
 
 // For std::transform
