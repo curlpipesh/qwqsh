@@ -2,8 +2,11 @@
 #define UUID_5C236E61_D10D_4B5B_B592_1DDD81F6F1E2
 
 #include <ostream>
+#include <sstream>
+#include <string>
 
 namespace Color {
+
 enum Code {
     FG_RED 		= 31,
     FG_GREEN 		= 32,

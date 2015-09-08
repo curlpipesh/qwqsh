@@ -1,5 +1,5 @@
 CC = clang++
-CFLAGS = -Wall -pipe -lreadline --std=c++0x
+CFLAGS = -Wall -pipe -lreadline --std=c++0x -g
 TARGET = qwqsh
 
 all: $(TARGET)

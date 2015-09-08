@@ -43,11 +43,23 @@ int main(int argc, char** argv) {
             break;
         }
         if(*line) {
+            TokenizerError* terr = verify(line);
+            if(terr->status > 0) {
+                // Error printing here.
+                PERR(terr->message);
+                PERR(terr->line);
+                PERR(terr->linePointer);
+                continue;
+            }
+	    free(terr);
             add_history(line);
-            std::string lineString = line;
+	    PDEBUG("Initial input: \"" << line << "\"");
+            std::string lineString = stripExtraWhitespace(line);
+	    PDEBUG("Inner space stripped");
+	    PDEBUG("Result: \"" << lineString << "\"");
             if(lineString.find("|") != std::string::npos) {
                 PDEBUG("Will be piping!");
-                std::vector<std::string> pipeTokens = split(line, '|');
+                std::vector<std::string> pipeTokens = split(lineString.c_str(), '|');
                 std::vector<std::vector<std::string> > splitPipeTokens;
                 PDEBUG("Pipe tokens:");
                 for(int i = 0; i < pipeTokens.size(); i++) {
@@ -77,7 +89,7 @@ int main(int argc, char** argv) {
                 shell_launch_pipe(currentChild, splitPipeTokens);
             } else {
                 PDEBUG("No pipe found");
-                std::vector<std::string> tokens = split(line);
+                std::vector<std::string> tokens = split(lineString.c_str());
                 std::vector<std::string>::iterator it = tokens.begin();
 #if DEBUG
                 std::string debugStr = "Result: \"";
