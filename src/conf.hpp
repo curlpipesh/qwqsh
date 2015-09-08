@@ -10,7 +10,7 @@
 #include <string.h>
 // Pretty debug macros ;-;
 
-#define PDEBUG(x) PMSG("DEBUG", x)
+#define PDEBUG(x) PCMSG(Color::FG_LIGHT_GREEN, "DEBUG", x)
 
 #else
 #define PDEBUG(x)
@@ -18,7 +18,7 @@
 
 #define PWARN(x) PCMSG(Color::FG_YELLOW, "WARNING", x)
 
-#define PMSG(t, x) PCMSG(Color::FG_RED, t, x)
+#define PMSG(t, x) PCMSG(Color::FG_DEFAULT, t, x)
 
 #define PCMSG(c, t, x) do {std::cout << c << t \
 	<< Color::FG_DEFAULT << ":" <<  Color::FG_LIGHT_BLUE \
