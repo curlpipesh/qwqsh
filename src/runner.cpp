@@ -64,6 +64,8 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
         pidOne = fork();
         if(pidOne == 0) {
             // fork() worked
+	    // TODO These don't actually get written in the parent 
+	    // process because we're in the child when we're doing this
             currentChild = getpid();
             dup2(fd[PIPE_WRITE], PIPE_WRITE);
             close(fd[PIPE_READ]);
