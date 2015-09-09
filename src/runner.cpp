@@ -150,9 +150,7 @@ std::vector<char*> convert(std::vector<std::string> args) {
     return converted;
 }
 
+// This is honestly probably just a lot stupid...
 char* cconvert(const std::string &s) {
-    // !!!
-    // THIS IS PROBABLY REALLY DANGEROUS BECAUSE IT'S SUPPOSED TO BE const!!!
-    // !!!
     return (char*) s.c_str();
 }
