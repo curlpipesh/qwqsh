@@ -49,6 +49,9 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
     // We have multiple commands that need piping, so...
     // This will be have to set up file descriptors and pipe i/o around and all that
     // TODO Actually handle more than one command at a time
+    // Could probably just store all the file descriptors in an array (like an int[?][2])
+    // and just keep them in the parent and just adjust them as we fork() new 
+    // processes. 
     
     // File descriptors
     int fd[2];
@@ -78,6 +81,7 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 wpidOne = waitpid(pidOne, &statusOne, WUNTRACED);
             } while(!WIFEXITED(statusOne) && !WIFSIGNALED(statusOne));
             PDEBUG("Done waiting!");
+	    PDEBUG("Final output: " << std::endl);
         }
         pidTwo = fork();
         if(pidTwo == 0) {
@@ -101,6 +105,7 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
         perror("shell: pipe() failed");
     }
 
+    PDEBUG("Done!");
     return 0;
 }
 
@@ -114,6 +119,7 @@ int shell_launch(pid_t& currentChild, std::vector<std::string> args) {
         // Child process
         std::vector<char*> converted = convert(args);
         PDEBUG("About to execvp()");
+	PDEBUG("Output: " << std::endl);
         if(execvp(args[0].c_str(), &converted[0]) == -1) {
             // execvp failed
             perror("shell: execvp() failed");
@@ -130,6 +136,7 @@ int shell_launch(pid_t& currentChild, std::vector<std::string> args) {
         } while(!WIFEXITED(status) && !WIFSIGNALED(status));
         PDEBUG("Done waiting!");
     }
+    PDEBUG("Done!");
     return 1;
 }
 
