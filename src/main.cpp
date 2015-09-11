@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
                 debugStr.append("\"");
                 PDEBUG(debugStr);
                 PDEBUG("Will attempt to run!");
-                shell_launch(currentChild, tokens);
+                shell_launch(tokens);
             }
         }
         free(line);

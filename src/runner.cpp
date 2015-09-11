@@ -3,14 +3,7 @@
  *      For validity, could just read $PATH with getenv(3), but probably can't just cache
  *      the results from that because it could change after running a command.
  *      Syntax verification will require writing a (minimal?) parser, mainly to check for
- *      the things like "||" instead of "|" and etc. 
- *
- * TODO Use mkfifo(3)? UNIX programming book seems to recommend doing so (see page 514-8)
- *      "FIFOs are used by shell commands to pass data from one shell pipeline to another..."
- *      We can't just use popen(3) and pclose(3) because those just invoke /bin/sh, and we
- *      don't want to cheat by doing that. Writing our own popen(3) and pclose(3) would be
- *      possible (because we're already doing essentially that), but would require some 
- *      extra work (See book, pages 503-10). 
+ *      the things like "||" instead of "|" and etc.
  */
 
 // For std::transform
@@ -26,6 +19,7 @@
 // For waitpid, WIFEXITED, WIFSIGNALED, ...
 #include <sys/wait.h>
 
+#include "colors.hpp"
 #include "conf.hpp"
 
 #define PIPE_READ 0
@@ -33,7 +27,8 @@
 
 std::vector<char*> convert(std::vector<std::string> args);
 char* cconvert(const std::string &s);
-int shell_launch(pid_t& currentChild, std::vector<std::string> args);
+int shell_launch(std::vector<std::string> args);
+long open_max(void);
 
 // '>>' should be '> >' within a nested template argument list
 int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> > pipedCommands) {
@@ -43,85 +38,99 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
         return 1;
     } else if(pipedCommands.size() == 1) {
         // Only one command, so why bother piping? We just need to treat it like a normal command
-        return shell_launch(currentChild, pipedCommands[0]);
+        return shell_launch(pipedCommands[0]);
     }
 
     // We have multiple commands that need piping, so...
     // This will be have to set up file descriptors and pipe i/o around and all that
     // TODO Actually handle more than one command at a time
     // Could probably just store all the file descriptors in an array (like an int[?][2])
-    // and just keep them in the parent and just adjust them as we fork() new 
-    // processes. 
-    
-    // File descriptors
-    int fd[2];
-    int pipeStatus;
-    pid_t pidOne, pidTwo, wpidOne;
-    int statusOne;
+    // and just keep them in the parent and just adjust them as we fork() new
+    // processes.
 
-    pipeStatus = pipe(fd); // TODO Error-check the pipe() call
-    if(pipeStatus == 0) {
-        pidOne = fork();
-        if(pidOne == 0) {
-            // fork() worked
-	    // TODO These don't actually get written in the parent 
-	    // process because we're in the child when we're doing this
-            currentChild = getpid();
-            dup2(fd[PIPE_WRITE], PIPE_WRITE);
-            close(fd[PIPE_READ]);
-            close(fd[PIPE_WRITE]);
-            std::vector<char*> converted = convert(pipedCommands[0]);
-            if(execvp(converted[0], &converted[0]) == -1) {
-                perror("shell: execvp() failed");
+    int totalFdCount = pipedCommands.size();
+
+
+    int fds[totalFdCount][2];
+    pid_t pids[totalFdCount];
+    pid_t wpids[totalFdCount];
+    int statuses[totalFdCount];
+
+    for(int i = 0; i < totalFdCount; i++) {
+        PDEBUG("i=" << i);
+        int pstat = pipe(fds[i]);
+        if(pstat == 0) {
+            PDEBUG("pipe()'d");
+            // pipe() worked
+            pids[i] = fork();
+            if(pids[i] == 0) {
+                PDEBUG(Color::FG_MAGENTA << "{" << Color::FG_DEFAULT);
+                PDEBUG("fork()'d");
+                // fork() worked
+                if(i == 0) {
+                    PDEBUG("** Making initial WRITE pipe **");
+                    // The initial process only needs to hook up to the write end
+                    dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
+                    PDEBUG(Color::FG_MAGENTA << "i=0 FINISH");
+                    close(fds[i][PIPE_WRITE]);
+                    close(fds[i][PIPE_READ]);
+                    PDEBUG("## WRITE: i=" << i << " ##");
+                } else if(i == totalFdCount - 1) {
+                    PDEBUG("** Making final READ pipe **");
+                    // The final process only needs to hook up to the read end
+                    dup2(fds[i - 1][PIPE_READ], PIPE_READ);
+                    close(fds[i - 1][PIPE_WRITE]);
+                    close(fds[i - 1][PIPE_READ]);
+                    PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
+                } else {
+                    PDEBUG("** Making in-between pipe **");
+                    // Everything in-between needs to hook up to both ends
+                    dup2(fds[i - 1][PIPE_READ], PIPE_READ);
+                    close(fds[i - 1][PIPE_READ]);
+                    close(fds[i - 1][PIPE_WRITE]);
+                    PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
+                    dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
+                    close(fds[i][PIPE_WRITE]);
+                    close(fds[i][PIPE_READ]);
+                    PDEBUG("## WRITE: i=" << i << " ##");
+                }
+                PDEBUG("*# Preparing to execvp()! #*");
+                std::vector<char*> converted = convert(pipedCommands[i]);
+                PDEBUG(Color::FG_MAGENTA << "}" << Color::FG_DEFAULT);
+                if(execvp(converted[0], &converted[0]) == -1) {
+                    perror("shell: execvp() failed");
+                }
+                exit(EXIT_FAILURE);
+            } else if(pids[i] < 0) {
+                perror("shell: fork() failed");
+            } else if(i < totalFdCount - 1) {
+                // waitpid
+                PDEBUG("Waiting on child...");
+                pid_t watch = i == 0 ? pids[i] : pids[i - 1];
+                do {
+                    wpids[i] = waitpid(watch, &(statuses[i]), WUNTRACED);
+                } while(!WIFEXITED(statuses[i]) && !WIFSIGNALED(statuses[i]));
+                PDEBUG("Done waiting! (" << pipedCommands[i][0] << ")");
             }
-            exit(EXIT_FAILURE);
-        } else if(pidOne < 0) {
-            perror("shell: fork() failed");
         } else {
-            PDEBUG("Waiting on child...");
-            do {
-                wpidOne = waitpid(pidOne, &statusOne, WUNTRACED);
-            } while(!WIFEXITED(statusOne) && !WIFSIGNALED(statusOne));
-            PDEBUG("Done waiting!");
-	    PDEBUG("Final output: " << std::endl);
+            perror("shell: pipe() failed");
         }
-        pidTwo = fork();
-        if(pidTwo == 0) {
-            currentChild = getpid();
-            dup2(fd[PIPE_READ], PIPE_READ);
-            close(fd[PIPE_READ]);
-            close(fd[PIPE_WRITE]);
-            std::vector<char*> converted = convert(pipedCommands[1]);
-            if(execvp(converted[0], &converted[0]) == -1) {
-                perror("shell: execvp() failed");
-            }
-            exit(EXIT_FAILURE);
-        } else if(pidTwo < 0) {
-            perror("shell: fork() failed");
-        }
-        // If we waitpid() here, then it hangs until we ^C it.
-        close(fd[PIPE_READ]);
-        close(fd[PIPE_WRITE]);
-        wait(NULL);
-    } else {
-        perror("shell: pipe() failed");
     }
-
+    wait(NULL);
     PDEBUG("Done!");
     return 0;
 }
 
-int shell_launch(pid_t& currentChild, std::vector<std::string> args) {
+int shell_launch(std::vector<std::string> args) {
     pid_t pid, wpid;
     int status;
 
     pid = fork();
     if(pid == 0) {
-        currentChild = getpid();
         // Child process
         std::vector<char*> converted = convert(args);
         PDEBUG("About to execvp()");
-	PDEBUG("Output: " << std::endl);
+        PDEBUG("Output: " << std::endl);
         if(execvp(args[0].c_str(), &converted[0]) == -1) {
             // execvp failed
             perror("shell: execvp() failed");
