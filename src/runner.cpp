@@ -21,6 +21,7 @@
 
 #include "colors.hpp"
 #include "conf.hpp"
+#include "tokenizer.hpp"
 
 #define PIPE_READ 0
 #define PIPE_WRITE 1
@@ -30,11 +31,13 @@ char* cconvert(const std::string &s);
 int shell_launch(std::vector<std::string> args);
 long open_max(void);
 
-// '>>' should be '> >' within a nested template argument list
+// TODO currentChild isn't actually used
+// std::vector<std::vector<std::string> > was easier than trying to make a char***
 int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> > pipedCommands) {
     PWARN("Multiple pipes are not yet implemented - you have been warned!");
     if(pipedCommands.size() == 0) {
         // No commands!
+	PWARN("No commands given to shell_launch_pipe()?!");
         return 1;
     } else if(pipedCommands.size() == 1) {
         // Only one command, so why bother piping? We just need to treat it like a normal command
@@ -43,20 +46,16 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
 
     // We have multiple commands that need piping, so...
     // This will be have to set up file descriptors and pipe i/o around and all that
-    // TODO Actually handle more than one command at a time
-    // Could probably just store all the file descriptors in an array (like an int[?][2])
-    // and just keep them in the parent and just adjust them as we fork() new
-    // processes.
 
-    int totalFdCount = pipedCommands.size();
-
+    // The number of pipes needed is always (commandCount - 1). 
+    int totalFdCount = pipedCommands.size() - 1;
 
     int fds[totalFdCount][2];
-    pid_t pids[totalFdCount];
-    pid_t wpids[totalFdCount];
-    int statuses[totalFdCount];
+    pid_t pids[totalFdCount + 1];
+    pid_t wpids[totalFdCount + 1];
+    int statuses[totalFdCount + 1];
 
-    for(int i = 0; i < totalFdCount; i++) {
+    for(int i = 0; i < totalFdCount + 1; i++) {
         PDEBUG("i=" << i);
         int pstat = pipe(fds[i]);
         if(pstat == 0) {
@@ -70,32 +69,36 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 if(i == 0) {
                     PDEBUG("** Making initial WRITE pipe **");
                     // The initial process only needs to hook up to the write end
-                    dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
-                    PDEBUG(Color::FG_MAGENTA << "i=0 FINISH");
-                    close(fds[i][PIPE_WRITE]);
+                    int status = dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
+		    PDEBUG("dup2(): " << status);
+		    // Somehow we always end up dying here. Why?
+		    // The child process shouldn't end up instantly exiting here
+
+                    //close(fds[i][PIPE_WRITE]);
                     close(fds[i][PIPE_READ]);
                     PDEBUG("## WRITE: i=" << i << " ##");
-                } else if(i == totalFdCount - 1) {
+                } else if(i == totalFdCount) {
                     PDEBUG("** Making final READ pipe **");
                     // The final process only needs to hook up to the read end
                     dup2(fds[i - 1][PIPE_READ], PIPE_READ);
                     close(fds[i - 1][PIPE_WRITE]);
-                    close(fds[i - 1][PIPE_READ]);
+                    //close(fds[i - 1][PIPE_READ]);
                     PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
                 } else {
                     PDEBUG("** Making in-between pipe **");
                     // Everything in-between needs to hook up to both ends
                     dup2(fds[i - 1][PIPE_READ], PIPE_READ);
-                    close(fds[i - 1][PIPE_READ]);
+                    //close(fds[i - 1][PIPE_READ]);
                     close(fds[i - 1][PIPE_WRITE]);
                     PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
                     dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
-                    close(fds[i][PIPE_WRITE]);
+                    //close(fds[i][PIPE_WRITE]);
                     close(fds[i][PIPE_READ]);
                     PDEBUG("## WRITE: i=" << i << " ##");
                 }
-                PDEBUG("*# Preparing to execvp()! #*");
+		// This was easier than making a char**
                 std::vector<char*> converted = convert(pipedCommands[i]);
+                PDEBUG("*# Preparing to execvp(" << converted[0] << ")! #*");
                 PDEBUG(Color::FG_MAGENTA << "}" << Color::FG_DEFAULT);
                 if(execvp(converted[0], &converted[0]) == -1) {
                     perror("shell: execvp() failed");
@@ -108,13 +111,24 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 PDEBUG("Waiting on child...");
                 pid_t watch = i == 0 ? pids[i] : pids[i - 1];
                 do {
-                    wpids[i] = waitpid(watch, &(statuses[i]), WUNTRACED);
-                } while(!WIFEXITED(statuses[i]) && !WIFSIGNALED(statuses[i]));
+                    wpids[watch] = waitpid(watch, &(statuses[watch]), WUNTRACED);
+                } while(!WIFEXITED(statuses[watch]) && !WIFSIGNALED(statuses[watch]));
                 PDEBUG("Done waiting! (" << pipedCommands[i][0] << ")");
-            }
+            } else {
+		    std::string s = "";
+		    for(int j = 0; j < pipedCommands[i].size(); j++) {
+			    s = s.append(pipedCommands[i][j]).append(" ");
+		    }
+		PWARN("Relevant information:");
+		PWARN("i=" << i);
+		PWARN("pids[i]=" << pids[i]);
+		PWARN("Command string=" << trim(s.c_str()));
+	    }
         } else {
             perror("shell: pipe() failed");
         }
+        close(fds[i][PIPE_READ]);
+	close(fds[i][PIPE_WRITE]);
     }
     wait(NULL);
     PDEBUG("Done!");
