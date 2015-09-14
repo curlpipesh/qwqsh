@@ -8,12 +8,14 @@
 #if DEBUG
 #include <iostream>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
 // Pretty debug macros ;-;
 
 #define PDEBUG(x) do {std::cout << Color::FG_LIGHT_GREEN << "DEBUG" \
 	<< Color::FG_DEFAULT << ":" <<  Color::FG_LIGHT_BLUE \
 	<< __FILE__ << Color::FG_DEFAULT << ":" \
-	<< Color::FG_LIGHT_GREEN << __LINE__ << Color::FG_DEFAULT \
+	<< Color::FG_LIGHT_GREEN << __LINE__ << ":" << getpid() << Color::FG_DEFAULT \
 	<< ": " << x << std::endl; } while(0)
 
 #else
