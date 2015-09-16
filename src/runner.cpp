@@ -56,7 +56,7 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
     pid_t wpids[commandCount];
     int statuses[commandCount];
 
-    for(int i = 0; i < totalFdCount + 1; i++) {
+    for(int i = 0; i < commandCount; i++) {
         PDEBUG("i=" << i);
         int pstat = pipe(fds[i]);
         if(pstat == 0) {
@@ -70,30 +70,26 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 if(i == 0) {
                     PDEBUG("** Making initial WRITE pipe **");
                     // The initial process only needs to hook up to the write end
-                    int status = dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
-                    // Somehow we always end up dying here. Why?
-                    // The child process shouldn't end up instantly exiting here
-                    PDEBUG("dup2(): " << status);
-
-                    //close(fds[i][PIPE_WRITE]);
+                    dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
+                    close(fds[i][PIPE_WRITE]);
                     close(fds[i][PIPE_READ]);
                     PDEBUG("## WRITE: i=" << i << " ##");
                 } else if(i == totalFdCount) {
                     PDEBUG("** Making final READ pipe **");
                     // The final process only needs to hook up to the read end
                     dup2(fds[i - 1][PIPE_READ], PIPE_READ);
+                    close(fds[i - 1][PIPE_READ]);
                     close(fds[i - 1][PIPE_WRITE]);
-                    //close(fds[i - 1][PIPE_READ]);
                     PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
                 } else {
                     PDEBUG("** Making in-between pipe **");
                     // Everything in-between needs to hook up to both ends
                     dup2(fds[i - 1][PIPE_READ], PIPE_READ);
-                    //close(fds[i - 1][PIPE_READ]);
+                    close(fds[i - 1][PIPE_READ]);
                     close(fds[i - 1][PIPE_WRITE]);
                     PDEBUG("## READ: (i-1)=" << (i - 1) << " ##");
                     dup2(fds[i][PIPE_WRITE], PIPE_WRITE);
-                    //close(fds[i][PIPE_WRITE]);
+                    close(fds[i][PIPE_WRITE]);
                     close(fds[i][PIPE_READ]);
                     PDEBUG("## WRITE: i=" << i << " ##");
                 }
@@ -101,14 +97,17 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 std::vector<char*> converted = convert(pipedCommands[i]);
                 PDEBUG("*# Preparing to execvp(" << converted[0] << ")! #*");
                 PDEBUG(Color::FG_MAGENTA << "}" << Color::FG_DEFAULT);
-                PDEBUG("Output:");
+                if(i == totalFdCount) {
+                    PDEBUG("Output:");
+                }
                 if(execvp(converted[0], &converted[0]) == -1) {
                     perror("shell: execvp() failed");
                 }
                 exit(EXIT_FAILURE);
             } else if(pids[i] < 0) {
                 perror("shell: fork() failed");
-            } else if(i < totalFdCount - 1) {
+                break;
+            } else if(i < commandCount - 1) {
                 // waitpid
                 PDEBUG("Waiting on child...");
                 pid_t watch = i == 0 ? pids[i] : pids[i - 1];
@@ -116,21 +115,23 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                     wpids[i] = waitpid(watch, &(statuses[i]), WUNTRACED);
                 } while(!WIFEXITED(statuses[i]) && !WIFSIGNALED(statuses[i]));
                 PDEBUG("Done waiting! (" << pipedCommands[i][0] << ")");
+#if DEBUG
             } else {
                 std::string s = "";
                 for(int j = 0; j < pipedCommands[i].size(); j++) {
                     s = s.append(pipedCommands[i][j]).append(" ");
                 }
-                PWARN("Relevant information:");
-                PWARN("i=" << i);
-                PWARN("pids[i]=" << pids[i]);
-                PWARN("Command string=" << trim(s.c_str()));
+                PDEBUG("Relevant information:");
+                PDEBUG("i=" << i);
+                PDEBUG("pids[i]=" << pids[i]);
+                PDEBUG("Command string=" << trim(s.c_str()));
+#endif
             }
         } else {
             perror("shell: pipe() failed");
         }
-        close(fds[i][PIPE_READ]);
         close(fds[i][PIPE_WRITE]);
+        close(fds[i][PIPE_READ]);
         wait(NULL);
     }
     wait(NULL);

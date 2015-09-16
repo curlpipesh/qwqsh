@@ -90,18 +90,18 @@ int main(int argc, char** argv) {
             } else {
                 PDEBUG("No pipe found");
                 std::vector<std::string> tokens = split(lineString.c_str());
-                std::vector<std::string>::iterator it = tokens.begin();
 #if DEBUG
+                std::vector<std::string>::iterator it = tokens.begin();
                 std::string debugStr = "Result: \"";
                 std::string toks = "";
                 for(; it != tokens.end(); it++) {
                     toks.append(*it);
                     toks.append(" ");
                 }
-#endif
                 debugStr.append(trim(toks.c_str()));
                 debugStr.append("\"");
                 PDEBUG(debugStr);
+#endif
                 PDEBUG("Will attempt to run!");
                 shell_launch(tokens);
             }

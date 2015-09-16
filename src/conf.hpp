@@ -1,15 +1,15 @@
 #ifndef UUID_A5D8D600_A5AA_42BA_8D07_E501F199E32B
 #define UUID_A5D8D600_A5AA_42BA_8D07_E501F199E32B
 
+#include <iostream>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include "colors.hpp"
 
 #define DEBUG true
 
 #if DEBUG
-#include <iostream>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 // Pretty debug macros ;-;
 
 #define PDEBUG(x) do {std::cerr << Color::FG_LIGHT_GREEN << "DEBUG" \
