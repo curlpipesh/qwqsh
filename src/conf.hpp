@@ -12,7 +12,7 @@
 #include <sys/types.h>
 // Pretty debug macros ;-;
 
-#define PDEBUG(x) do {std::cout << Color::FG_LIGHT_GREEN << "DEBUG" \
+#define PDEBUG(x) do {std::cerr << Color::FG_LIGHT_GREEN << "DEBUG" \
 	<< Color::FG_DEFAULT << ":" <<  Color::FG_LIGHT_BLUE \
 	<< __FILE__ << Color::FG_DEFAULT << ":" \
 	<< Color::FG_LIGHT_GREEN << __LINE__ << ":" << getpid() << Color::FG_DEFAULT \
@@ -27,7 +27,7 @@
 
 #define PMSG(t, x) PCMSG(Color::FG_DEFAULT, t, x)
 
-#define PCMSG(c, t, x) do {std::cout << c << t \
+#define PCMSG(c, t, x) do {std::cerr << c << t \
 	<< Color::FG_DEFAULT << ": " << x << std::endl; } while(0)
 
 

@@ -101,6 +101,7 @@ int shell_launch_pipe(pid_t& currentChild, std::vector<std::vector<std::string> 
                 std::vector<char*> converted = convert(pipedCommands[i]);
                 PDEBUG("*# Preparing to execvp(" << converted[0] << ")! #*");
                 PDEBUG(Color::FG_MAGENTA << "}" << Color::FG_DEFAULT);
+                PDEBUG("Output:");
                 if(execvp(converted[0], &converted[0]) == -1) {
                     perror("shell: execvp() failed");
                 }
